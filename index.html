@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Proxy Client</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            text-align: center;
+            width: 90%;
+            max-width: 600px;
+            z-index: 2;
+        }
+        h1 { margin-bottom: 20px; font-weight: 600; color: #4caf50; }
+        .proxy-form { display: flex; width: 100%; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border-radius: 8px; overflow: hidden; }
+        .url-input {
+            flex: 1;
+            padding: 15px 20px;
+            border: none;
+            background-color: #1f1f1f;
+            color: #fff;
+            font-size: 16px;
+            outline: none;
+        }
+        .submit-btn {
+            padding: 0 30px;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+        .submit-btn:hover { background-color: #45a049; }
+        .status { margin-top: 15px; font-size: 14px; color: #888; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Web Proxy</h1>
+        <form class="proxy-form" id="proxyForm">
+            <input 
+                type="text" 
+                id="targetUrl" 
+                class="url-input" 
+                placeholder="Enter website URL or search query..." 
+                required
+            >
+            <button type="submit" class="submit-btn">Go</button>
+        </form>
+        <div class="status" id="statusMessage">Ready</div>
+    </div>
+
+    <!-- Loads Ultraviolet libraries dynamically via public CDN -->
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+    
+    <script>
+        // Update default config to point to a public public gateway instance
+        // Change the bare URL if the default gateway is busy or blocked
+        self.__uv$config = {
+            prefix: '/service/',
+            bare: 'https://proudsmart.org', 
+            encodeUrl: Ultraviolet.codec.xor.encode,
+            decodeUrl: Ultraviolet.codec.xor.decode,
+            handler: '/uv.handler.js',
+            bundle: '/uv.bundle.js',
+            config: '/uv.config.js',
+            sw: '/uv.sw.js'
+        };
+
+        document.getElementById('proxyForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const status = document.getElementById('statusMessage');
+            let inputUrl = document.getElementById('targetUrl').value.trim();
+            
+            status.textContent = "Registering proxy workers...";
+
+            // Format search or direct web link
+            if (!/^https?:\/\//i.test(inputUrl)) {
+                if (inputUrl.includes('.') && !inputUrl.includes(' ')) {
+                    inputUrl = 'https://' + inputUrl;
+                } else {
+                    inputUrl = 'https://google.com' + encodeURIComponent(inputUrl);
+                }
+            }
+
+            try {
+                // Register service worker structure directly from the CDN script context
+                await navigator.serviceWorker.register('data:application/javascript,' + encodeURIComponent(`
+                    importScripts('https://jsdelivr.net');
+                    const sw = new UVServiceWorker();
+                    self.addEventListener('fetch', event => event.respondWith(sw.fetch(event)));
+                `), {
+                    scope: __uv$config.prefix
+                });
+
+                status.textContent = "Launching website...";
+                
+                // Redirect user to the active sandbox path
+                window.location.href = window.location.origin + __uv$config.prefix + __uv$config.encodeUrl(inputUrl);
+            } catch (err) {
+                status.textContent = "Error: Service workers require HTTPS or localhost to run.";
+                console.error(err);
+            }
+        });
+    </script>
+
+</body>
+</html>
